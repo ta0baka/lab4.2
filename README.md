@@ -17,8 +17,9 @@
 ```
 При включении приложения производится проверка подключения к Интернету. В случае если подключение отсутствует – выводится всплывающее сообщение `Toast` с предупреждением о запуске в автономном режиме (доступен только просмотр внесенных ранее записей).
 <p align="center">
-<img src="https://sun9-75.userapi.com/s/v1/ig2/KgGDiavYhE6_W_RDLK9YIsxzssqxJV8JKIUJ6YLQf2xg1mF2cwI5lebSCZ8YyaYDTZDjNI4ND_NvCPg6LRhlykrW.jpg?quality=95&as=32x68,48x101,72x152,108x228,160x338,240x507,360x760,480x1013,540x1140,640x1351,720x1520&from=bu&u=yX4SfP33-YjVWTeIrAdEEwyAAbVPVq7H5lcVjU9V7nM&cs=720x1520"> 
+<img src="https://sun9-75.userapi.com/s/v1/ig2/KgGDiavYhE6_W_RDLK9YIsxzssqxJV8JKIUJ6YLQf2xg1mF2cwI5lebSCZ8YyaYDTZDjNI4ND_NvCPg6LRhlykrW.jpg?quality=95&as=32x68,48x101,72x152,108x228,160x338,240x507,360x760,480x1013,540x1140,640x1351,720x1520&from=bu&u=yX4SfP33-YjVWTeIrAdEEwyAAbVPVq7H5lcVjU9V7nM&cs=720x1520" width="250" height="500"> 
 </p>
+
 После включения приложение должно производить асинхронный опрос сервера с интервалом 20 секунд. Если название трека не совпадает с
 последней записью в таблице необходимо произвести запись в БД. URL адрес, по которому можно получить информацию о текущем треке и исполнителе: http://media.ifmo.ru/api_get_current_song.php. Формат возвращаемых данных – JSON. В случае успешного выполнения запроса результат будет иметь вид: `{“result”: “success”, “info” : “Исполнитель – Название трека” }`
 В случае ошибки API вернет следующую строку:
@@ -27,5 +28,44 @@
 необходимо передавать логин (login) и пароль(password) как POSTпараметры.
 login: `4707login`
 password: `4707pass`
-Приложение должно содержать активити, позволяющее просматривать
-внесенные в базу данных записи.
+```java
+private void fetchCurrentSong() {
+        new Thread(() -> {
+            try {
+                URL url = new URL("http://media.ifmo.ru/api_get_current_song.php");
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                conn.setRequestMethod("POST");
+                conn.setDoOutput(true);
+                String postData = "login=4707login&password=4707pass";
+                OutputStream os = conn.getOutputStream();
+                os.write(postData.getBytes());
+                os.flush();
+                os.close();
+
+                BufferedReader in = new BufferedReader(new InputStreamReader(conn.getInputStream()));
+                String inputLine;
+                StringBuilder response = new StringBuilder();
+                while ((inputLine = in.readLine()) != null) {
+                    response.append(inputLine);
+                }
+                in.close();
+
+                JSONObject jsonResponse = new JSONObject(response.toString());
+                if (jsonResponse.getString("result").equals("success")) {
+                    String info = jsonResponse.getString("info");
+                    String[] parts = info.split(" – ");
+                    String artist = parts[0];
+                    String title = parts[1];
+
+                    if (!lastSong.equals(title)) {
+                        dbHelper.addSong(artist, title);
+                        lastSong = title;
+                        activity.runOnUiThread(activity::displaySongs);
+                    }
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Error in MyTask", e);
+            }
+        }).start();
+    }
+```
